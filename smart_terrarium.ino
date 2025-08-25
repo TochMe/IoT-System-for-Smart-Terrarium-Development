@@ -41,7 +41,7 @@ const int VPIN_LIGHT = V3;
 const int VPIN_FAN   = V4;
 const int VPIN_PUMP  = V5;
 const int VPIN_LAMP  = V6;
-const int VPIN_MODE  = V7; // Auto/Manual mode
+const int VPIN_MODE  = V7; 
 
 // Status virtual pins
 const int VPIN_TEMP_STATUS  = V8;
@@ -125,7 +125,7 @@ void sendSensorData() {
   if (autoMode) {
     if (!isnan(tempAvg)) fanState  = (tempAvg > FAN_THRESHOLD_C);
     pumpState = (soilPct < SOIL_PERCENT_THRESHOLD);
-    lampState = (lux < LIGHT_LUX_THRESHOLD);   // ✅ FIXED
+    lampState = (lux < LIGHT_LUX_THRESHOLD);   
   } else {
     fanState  = manualFan;
     pumpState = manualPump;
@@ -181,7 +181,7 @@ void sendSensorData() {
     lcd.print(lampState ? "On" : "Off");
   }
 
-  lcdPage = (lcdPage + 1) % 2;  // ganti halaman
+  lcdPage = (lcdPage + 1) % 2; 
 }
  
 // ---------- Setup ----------
