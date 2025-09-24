@@ -11,8 +11,8 @@
 #include "DHT.h"
 
 // ---------- WiFi ----------
-char ssid[] = "bjannati68 4G";
-char pass[] = "f4z4family";
+char ssid[] = "Your Wifi name";
+char pass[] = "Your Wifi Password";
 
 // ---------- Pins ----------
 #define DHTPIN     4
