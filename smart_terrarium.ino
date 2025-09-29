@@ -16,17 +16,12 @@ char pass[] = "Your Wifi Password";
 
 // ---------- Pins ----------
 #define DHTPIN     4
-#define DHTTYPE    DHT11s
+#define DHTTYPE    DHT11
 #define SOIL_PIN   34
 #define LDR_PIN    35
 #define FAN_PIN    25
 #define PUMP_PIN   26
 #define LAMP_PIN   14
-
-// ---------- Thresholds ----------
-const float FAN_THRESHOLD_C = 27.0;
-const int SOIL_PERCENT_THRESHOLD = 40;
-const int LIGHT_LUX_THRESHOLD = 300;
 
 // ---------- Objects ----------
 DHT dht(DHTPIN, DHTTYPE);
@@ -41,7 +36,7 @@ const int VPIN_LIGHT = V3;
 const int VPIN_FAN   = V4;
 const int VPIN_PUMP  = V5;
 const int VPIN_LAMP  = V6;
-const int VPIN_MODE  = V7; 
+const int VPIN_MODE  = V7;
 
 // Status virtual pins
 const int VPIN_TEMP_STATUS  = V8;
@@ -77,27 +72,45 @@ int soilToPercent(int raw) {
 }
 
 int lightToLux(int raw) {
-  int lux = map(raw, 4095, 0, 0, 1000); 
+  int lux = map(raw, 4095, 0, 0, 1000);
   return constrain(lux, 0, 1000);
 }
 
-// ---------- Status helper functions ----------
-String getTempStatus(float temp) {
-  if (temp > FAN_THRESHOLD_C + 2) return "Hot";
-  else if (temp < FAN_THRESHOLD_C - 2) return "Cold";
-  else return "Normal";
+// ---------- Fuzzy Category ----------
+String getTempCategory(float t) {
+  if (t <= 26) return "Cold";
+  else if (t < 28) return "Normal";
+  else return "Hot";
 }
 
-String getSoilStatus(int soilPct) {
-  if (soilPct < SOIL_PERCENT_THRESHOLD - 10) return "Dry";
-  else if (soilPct > SOIL_PERCENT_THRESHOLD + 10) return "Watery";
-  else return "Normal";
+String getSoilCategory(int s) {
+  if (s <= 30) return "Dry";
+  else if (s < 50) return "Normal";
+  else return "Watery";
 }
 
-String getLightStatus(int lux) {
-  if (lux > LIGHT_LUX_THRESHOLD + 100) return "Light";
-  else if (lux < LIGHT_LUX_THRESHOLD - 100) return "Dark";
-  else return "Normal";
+String getLightCategory(int lux) {
+  if (lux <= 200) return "Dark";
+  else if (lux < 400) return "Normal";
+  else return "Light";
+}
+
+// ---------- Fuzzy ----------
+void fuzzyControl(float temp, int soilPct, int lux) {
+  String tempCat = getTempCategory(temp);
+  String soilCat = getSoilCategory(soilPct);
+  String lightCat = getLightCategory(lux);
+
+  fanState = (tempCat == "Hot");
+
+  pumpState = (soilCat == "Dry");
+
+  lampState = (lightCat == "Dark");
+
+  // Kirim status kategori ke Blynk
+  Blynk.virtualWrite(VPIN_TEMP_STATUS, tempCat);
+  Blynk.virtualWrite(VPIN_SOIL_STATUS, soilCat);
+  Blynk.virtualWrite(VPIN_LIGHT_STATUS, lightCat);
 }
 
 // ---------- Blynk Handlers ----------
@@ -123,21 +136,19 @@ void sendSensorData() {
 
   // Auto/Manual Control
   if (autoMode) {
-    if (!isnan(tempAvg)) fanState  = (tempAvg > FAN_THRESHOLD_C);
-    pumpState = (soilPct < SOIL_PERCENT_THRESHOLD);
-    lampState = (lux < LIGHT_LUX_THRESHOLD);   
+    fuzzyControl(tempAvg, soilPct, lux);
   } else {
     fanState  = manualFan;
     pumpState = manualPump;
     lampState = manualLamp;
   }
 
-  // Output ke pin
+  // Output ke pin (active LOW relay)
   digitalWrite(FAN_PIN,  fanState  ? LOW : HIGH);
   digitalWrite(PUMP_PIN, pumpState ? LOW : HIGH);
   digitalWrite(LAMP_PIN, lampState ? LOW : HIGH);
 
-  // Kirim ke Blynk
+  // Kirim data sensor ke Blynk
   if (!isnan(tempAvg)) Blynk.virtualWrite(VPIN_TEMP, tempAvg);
   if (!isnan(humAvg))  Blynk.virtualWrite(VPIN_HUM, humAvg);
   Blynk.virtualWrite(VPIN_SOIL, soilPct);
@@ -146,15 +157,9 @@ void sendSensorData() {
   Blynk.virtualWrite(VPIN_PUMP, pumpState);
   Blynk.virtualWrite(VPIN_LAMP, lampState);
 
-  // Status
-  if (!isnan(tempAvg)) Blynk.virtualWrite(VPIN_TEMP_STATUS, getTempStatus(tempAvg));
-  Blynk.virtualWrite(VPIN_SOIL_STATUS, getSoilStatus(soilPct));
-  Blynk.virtualWrite(VPIN_LIGHT_STATUS, getLightStatus(lux));
-
   // LCD Display (bergantian)
   lcd.clear();
   if (lcdPage == 0) {
-    // Page 1: Temp + Humid + Soil + Light
     lcd.setCursor(0,0);
     lcd.print("T:");
     lcd.print(tempAvg,1);
@@ -169,7 +174,6 @@ void sendSensorData() {
     lcd.print(soilPct);
     lcd.print("%");
   } else {
-    // Page 2: Status Fan Pump Lamp
     lcd.setCursor(0,0);
     lcd.print("Fan:");
     lcd.print(fanState ? "On " : "Off");
@@ -181,9 +185,9 @@ void sendSensorData() {
     lcd.print(lampState ? "On" : "Off");
   }
 
-  lcdPage = (lcdPage + 1) % 2; 
+  lcdPage = (lcdPage + 1) % 2;
 }
- 
+
 // ---------- Setup ----------
 void setup() {
   Serial.begin(115200);
